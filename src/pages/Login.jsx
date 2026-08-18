@@ -18,9 +18,9 @@ export default function Login() {
       await login(email, password)
       navigate('/')
     } catch (err) {
-      // On reste volontairement vague : ne pas dire si c'est l'email ou
-      // le mot de passe qui est faux (évite de confirmer qu'un compte existe)
-      setError("Accès refusé. Vérifie tes identifiants ou contacte un administrateur.")
+      console.error("Erreur complète de connexion :", err)
+      // Affiche le code d'erreur Firebase réel s'il existe
+      setError(`Accès refusé : ${err.code || err.message}`)
     } finally {
       setLoading(false)
     }

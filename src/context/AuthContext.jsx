@@ -11,21 +11,36 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // onAuthStateChanged se déclenche à chaque changement de session
-    // (connexion, déconnexion, rechargement de page)
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true)
       if (firebaseUser) {
-        // On va chercher le document utilisateur dans Firestore pour vérifier
-        // que son rôle est bien "admin". C'est CETTE vérification qui protège
-        // le dashboard, pas juste le fait d'être connecté.
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid))
-        const role = userDoc.exists() ? userDoc.data().role : null
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid)
+          const userDoc = await getDoc(userDocRef)
 
-        if (role === 'admin') {
-          setUser(firebaseUser)
-          setIsAdmin(true)
-        } else {
-          // Connecté mais pas admin -> on le déconnecte immédiatement
+          if (!userDoc.exists()) {
+            console.error(`❌ Erreur Auth : Aucun document trouvé dans Firestore pour l'UID "${firebaseUser.uid}" dans la collection "users".`)
+            await signOut(auth)
+            setUser(null)
+            setIsAdmin(false)
+          } else {
+            const data = userDoc.data()
+            console.log("📄 Données récupérées dans Firestore :", data)
+
+            // Vérification souple du rôle (accepte role === "admin" OU isAdmin === true)
+            if (data.role === 'admin' || data.isAdmin === true) {
+              console.log("✅ Accès Admin confirmé !")
+              setUser(firebaseUser)
+              setIsAdmin(true)
+            } else {
+              console.error(`❌ Erreur Auth : Le rôle trouvé est "${data.role}", attendu "admin".`)
+              await signOut(auth)
+              setUser(null)
+              setIsAdmin(false)
+            }
+          }
+        } catch (err) {
+          console.error("❌ Erreur de lecture dans Firestore (Règles de sécurité ?) :", err)
           await signOut(auth)
           setUser(null)
           setIsAdmin(false)
@@ -42,7 +57,6 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     await signInWithEmailAndPassword(auth, email, password)
-    // La vérification du rôle se fait automatiquement via onAuthStateChanged ci-dessus
   }
 
   async function logout() {
